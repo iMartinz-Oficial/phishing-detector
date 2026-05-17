@@ -218,51 +218,66 @@ def extract_urls(text):
 
 def analyze_urls(urls):
     if not urls:
-        return 0.1, "Sin URLs detectadas", [], None
+        return 0.1, "Sin URLs detectadas", [], []
 
+    url_details = []
     vt_results = []
-    found_urls = []
+    max_score = 0.1
 
     for url in urls:
+        url_info = {"url": url, "analysis": {}, "heuristic_score": 0}
+
         for tld in SUSPICIOUS_TLD:
-            if tld in url:
-                found_urls.append(
-                    {"palabra": url[:50], "razon": f"TLD '{tld}' sospechoso"}
-                )
-                return 0.8, f"URL con TLD sospechoso", found_urls, None
-        if re.search(SUSPICIOUS_URL_PATTERN, url.lower()):
-            found_urls.append(
-                {"palabra": url[:50], "razon": "Dominio que simula marca conocida"}
-            )
-            return 0.6, "URL con patrón de marca falsa", found_urls, None
+            if tld in url.lower():
+                url_info["heuristic_score"] = 0.9
+                url_info["analysis"]["tld"] = {"detected": True, "tld": tld}
+                break
+
+        if url_info["heuristic_score"] == 0 and re.search(
+            SUSPICIOUS_URL_PATTERN, url.lower()
+        ):
+            url_info["heuristic_score"] = 0.7
+            url_info["analysis"]["brand_impersonation"] = {"detected": True}
 
         vt_result = check_url_virustotal(url)
         if vt_result:
-            vt_results.append({"url": url[:50], "result": vt_result})
+            url_info["analysis"]["virustotal"] = vt_result
+
+            if vt_result["status"] == "PELIGROSO":
+                url_info["virustotal_score"] = 0.95
+            elif vt_result["status"] == "SOSPECHOSO":
+                url_info["virustotal_score"] = 0.6
+            elif vt_result["status"] == "SEGURO":
+                url_info["virustotal_score"] = 0.05
+            else:
+                url_info["virustotal_score"] = 0.3
+        else:
+            url_info["virustotal_score"] = 0
+
+        url_score = max(
+            url_info["heuristic_score"], url_info.get("virustotal_score", 0)
+        )
+        url_info["final_score"] = url_score
+
+        if url_score > max_score:
+            max_score = url_score
+
+        url_details.append(url_info)
+
+        if vt_result:
+            vt_results.append({"url": url, "result": vt_result})
 
     if len(urls) > 5:
-        return 0.5, f"Muchas URLs ({len(urls)})", [], None
+        return 0.5, f"Demasiadas URLs ({len(urls)})", url_details, vt_results
 
-    malicious_count = sum(
-        1 for r in vt_results if r["result"].get("status") == "PELIGROSO"
-    )
-    suspicious_count = sum(
-        1 for r in vt_results if r["result"].get("status") == "SOSPECHOSO"
-    )
-
-    if malicious_count > 0:
-        return (
-            0.9,
-            "URL confirmada como maliciosa por VirusTotal",
-            found_urls,
-            vt_results,
-        )
-    elif suspicious_count > 0:
-        return 0.7, "URL sospechosa según VirusTotal", found_urls, vt_results
-    elif vt_results:
-        return 0.1, "URLs marcadas como seguras por VirusTotal", found_urls, vt_results
-
-    return 0.2, f"{len(urls)} URLs sin análisis previos", found_urls, vt_results
+    if max_score >= 0.8:
+        return max_score, "URLs peligrosas detectadas", url_details, vt_results
+    elif max_score >= 0.5:
+        return max_score, "URLs sospechosas detectadas", url_details, vt_results
+    elif max_score >= 0.3:
+        return max_score, "Algunas URLs requieren atención", url_details, vt_results
+    else:
+        return max_score, "URLs parecen seguras", url_details, vt_results
 
 
 model = None
@@ -369,7 +384,7 @@ def app(environ, start_response):
 
         content_urls = extract_urls(content)
         all_urls = list(set(urls_input + content_urls))
-        url_score, url_msg, url_words, vt_results = analyze_urls(all_urls)
+        url_score, url_msg, url_details, vt_results = analyze_urls(all_urls)
 
         processed = clean_text(content)
         if len(processed) < 20:
@@ -568,7 +583,7 @@ Mantén precaución habitual con cualquier email, incluso los que parecen seguro
                 "enlaces": {
                     "score": url_score,
                     "message": url_msg,
-                    "words": url_words,
+                    "details": url_details,
                     "nombre": "Enlaces",
                 },
             },

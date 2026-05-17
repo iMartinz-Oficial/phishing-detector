@@ -216,16 +216,35 @@
                     document.getElementById('senderScore').innerHTML = `<span class="score">${data.components.sender_analysis.score}%</span> (peso: ${data.components.sender_analysis.weight}%)`;
                 }
                 
-                if (data.virustotal && data.virustotal.length > 0) {
+                if (data.details.enlaces && data.details.enlaces.details && data.details.enlaces.details.length > 0) {
                     const vtContainer = document.getElementById('vtResultsContainer');
                     const vtList = document.getElementById('vtResultsList');
                     vtList.innerHTML = '';
-                    data.virustotal.forEach(vt => {
-                        const statusClass = vt.result.status === 'PELIGROSO' ? 'vt-danger' : vt.result.status === 'SOSPECHOSO' ? 'vt-warning' : 'vt-safe';
+                    
+                    data.details.enlaces.details.forEach(urlInfo => {
+                        const score = (urlInfo.final_score * 100).toFixed(0);
+                        const scoreClass = urlInfo.final_score > 0.5 ? 'vt-danger' : urlInfo.final_score > 0.3 ? 'vt-warning' : 'vt-safe';
+                        let analysisText = '';
+                        
+                        if (urlInfo.analysis.tld) {
+                            analysisText += `<span style="color: #ff4444;">⚠️ TLD sospechoso (.${urlInfo.analysis.tld.tld})</span><br>`;
+                        }
+                        if (urlInfo.analysis.brand_impersonation) {
+                            analysisText += `<span style="color: #ff4444;">⚠️ Suplanta marca conocida</span><br>`;
+                        }
+                        if (urlInfo.analysis.virustotal) {
+                            const vt = urlInfo.analysis.virustotal;
+                            const vtClass = vt.status === 'PELIGROSO' ? 'vt-danger' : vt.status === 'SOSPECHOSO' ? 'vt-warning' : 'vt-safe';
+                            analysisText += `<span class="${vtClass}">🦠 VirusTotal: ${vt.status} (${vt.malicious} malicioso, ${vt.suspicious} sospechoso de ${vt.total})</span>`;
+                        }
+                        
                         vtList.innerHTML += `
-                            <div class="vt-result-item">
-                                <span>${vt.url}</span>
-                                <span class="${statusClass}">${vt.result.status}: ${vt.result.message}</span>
+                            <div class="vt-result-item" style="flex-direction: column; align-items: flex-start;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 5px;">
+                                    <span style="word-break: break-all;">${urlInfo.url.length > 60 ? urlInfo.url.substring(0, 60) + '...' : urlInfo.url}</span>
+                                    <span class="${scoreClass}" style="font-weight: bold;">${score}%</span>
+                                </div>
+                                <div style="font-size: 12px; color: #a0a0a0;">${analysisText || 'Sin problemas detectados'}</div>
                             </div>
                         `;
                     });
