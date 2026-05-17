@@ -38,6 +38,18 @@
         .recommendation { background: #2a2a3e; padding: 20px; border-radius: 12px; margin-top: 20px; }
         .recommendation h3 { color: #00d4ff; margin-bottom: 10px; }
         .recommendation p { color: #fff; }
+        .components-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
+        .component-card { background: #2a2a3e; padding: 12px; border-radius: 8px; }
+        .component-card h5 { color: #00d4ff; font-size: 13px; margin-bottom: 5px; }
+        .component-card p { color: #a0a0a0; font-size: 12px; margin: 0; }
+        .component-card .score { font-weight: bold; color: #00d4ff; font-size: 14px; }
+        .vt-results { background: #252535; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .vt-results h5 { color: #00d4ff; margin-bottom: 10px; }
+        .vt-result-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #3a3a4e; }
+        .vt-result-item:last-child { border-bottom: none; }
+        .vt-danger { color: #ff4444; }
+        .vt-warning { color: #ffaa00; }
+        .vt-safe { color: #00cc66; }
         .loader { display: none; text-align: center; padding: 20px; }
         .spinner { width: 40px; height: 40px; border: 4px solid #3a3a4e; border-top: 4px solid #00d4ff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -132,6 +144,33 @@
                     <h3>📋 Resumen del Análisis</h3>
                     <p id="summary" style="white-space: pre-line; line-height: 1.6;">-</p>
                 </div>
+                <div class="recommendation">
+                    <h3>🔬 Evaluación de Componentes</h3>
+                    <div class="components-grid" id="componentsGrid">
+                        <div class="component-card">
+                            <h5>🤖 Modelo ML (TF-IDF)</h5>
+                            <p id="mlScore">-</p>
+                        </div>
+                        <div class="component-card">
+                            <h5>🦠 VirusTotal</h5>
+                            <p id="vtScore">-</p>
+                        </div>
+                        <div class="component-card">
+                            <h5>📝 Análisis de Asunto</h5>
+                            <p id="subjectScore">-</p>
+                        </div>
+                        <div class="component-card">
+                            <h5>📧 Análisis de Remitente</h5>
+                            <p id="senderScore">-</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="vtResultsContainer" style="display: none;">
+                    <div class="recommendation">
+                        <h3>🔍 Resultados de VirusTotal</h3>
+                        <div id="vtResultsList"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -163,12 +202,37 @@
                 
                 document.getElementById('scoreValue').textContent = data.score;
                 document.getElementById('resultLabel').textContent = data.label.toUpperCase();
-                document.getElementById('senderDetail').textContent = data.details.sender.message;
-                document.getElementById('subjectDetail').textContent = data.details.subject.message;
-                document.getElementById('contentDetail').textContent = data.details.content.message;
-                document.getElementById('urlsDetail').textContent = data.details.urls ? data.details.urls.message : 'Sin URLs';
+                document.getElementById('senderDetail').textContent = data.details.remitente.message;
+                document.getElementById('subjectDetail').textContent = data.details.asunto.message;
+                document.getElementById('contentDetail').textContent = data.details.contenido.message;
+                document.getElementById('urlsDetail').textContent = data.details.enlaces ? data.details.enlaces.message : 'Sin URLs';
                 document.getElementById('recommendation').textContent = data.recommendation;
                 document.getElementById('summary').textContent = data.summary || 'No disponible';
+                
+                if (data.components) {
+                    document.getElementById('mlScore').innerHTML = `<span class="score">${data.components.ml_model.score}%</span> (peso: ${data.components.ml_model.weight}%)`;
+                    document.getElementById('vtScore').innerHTML = `<span class="score">${data.components.virustotal.score}%</span> (peso: ${data.components.virustotal.weight}%)`;
+                    document.getElementById('subjectScore').innerHTML = `<span class="score">${data.components.subject_analysis.score}%</span> (peso: ${data.components.subject_analysis.weight}%)`;
+                    document.getElementById('senderScore').innerHTML = `<span class="score">${data.components.sender_analysis.score}%</span> (peso: ${data.components.sender_analysis.weight}%)`;
+                }
+                
+                if (data.virustotal && data.virustotal.length > 0) {
+                    const vtContainer = document.getElementById('vtResultsContainer');
+                    const vtList = document.getElementById('vtResultsList');
+                    vtList.innerHTML = '';
+                    data.virustotal.forEach(vt => {
+                        const statusClass = vt.result.status === 'PELIGROSO' ? 'vt-danger' : vt.result.status === 'SOSPECHOSO' ? 'vt-warning' : 'vt-safe';
+                        vtList.innerHTML += `
+                            <div class="vt-result-item">
+                                <span>${vt.url}</span>
+                                <span class="${statusClass}">${vt.result.status}: ${vt.result.message}</span>
+                            </div>
+                        `;
+                    });
+                    vtContainer.style.display = 'block';
+                } else {
+                    document.getElementById('vtResultsContainer').style.display = 'none';
+                }
                 
                 const header = document.getElementById('resultHeader');
                 const fill = document.getElementById('scoreFill');
