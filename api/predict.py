@@ -386,7 +386,7 @@ def app(environ, start_response):
             else:
                 content_msg = "Contenido normal"
 
-        weights = {"sender": 0.15, "subject": 0.20, "content": 0.50, "urls": 0.15}
+        weights = {"sender": 0.10, "subject": 0.15, "content": 0.40, "urls": 0.35}
         final_score = (
             sender_score * weights["sender"]
             + subject_score * weights["subject"]
@@ -394,76 +394,205 @@ def app(environ, start_response):
             + url_score * weights["urls"]
         )
 
+        evaluations = {
+            "remitente": {
+                "score": sender_score,
+                "message": sender_msg,
+                "nombre": "Remitente",
+            },
+            "asunto": {
+                "score": subject_score,
+                "message": subject_msg,
+                "nombre": "Asunto",
+            },
+            "contenido": {
+                "score": content_score,
+                "message": content_msg,
+                "nombre": "Contenido del Email",
+            },
+            "enlaces": {
+                "score": url_score,
+                "message": url_msg,
+                "nombre": "Análisis de Enlaces",
+            },
+        }
+
         if final_score > 0.6:
             label = "phishing"
-            recommendation = (
-                "No hacer clic en ningún enlace, no proporcionar información personal"
-            )
             level = "ALTO"
+            concerns = []
+            if sender_score > 0.5:
+                concerns.append("El dominio del remitente es sospechoso")
+            if subject_score > 0.5:
+                concerns.append(
+                    "El asunto contiene palabras de urgencia o manipulación"
+                )
+            if content_score > 0.5:
+                concerns.append("El contenido del email tiene patrones de phishing")
+            if url_score > 0.5:
+                concerns.append(
+                    "Los enlaces han sido marcados como peligrosos porVirusTotal"
+                )
+            recommendation = "⚠️ NO hagas clic en ningún enlace. ⚠️ No proporciones información personal. ⚠️ Verifica el remitente contactándolo por otros medios."
         elif final_score > 0.4:
             label = "suspicious"
-            recommendation = "Verificar el remitente directamente antes de actuar"
             level = "MEDIO"
+            concerns = []
+            if sender_score > 0.3:
+                concerns.append("El dominio del remitente parece inusual")
+            if subject_score > 0.3:
+                concerns.append(
+                    "El asunto tiene algunas palabras que suelen usar losphishing"
+                )
+            if content_score > 0.3:
+                concerns.append(
+                    "El contenido tiene algunas características suspechosas"
+                )
+            if url_score > 0.3:
+                concerns.append("Algunos enlaces requieren más verificación")
+            recommendation = "⚠️ Verifica el remitente directamente antes de actuar. ⚠️ No proporcion datos sensibles."
         else:
             label = "legitimate"
-            recommendation = "Mantén precaución habitual con cualquier email"
             level = "BAJO"
+            concerns = []
+            recommendation = "✅ El email parece legítimo, pero mantén precaución habitualcon cualquier correo."
 
-        scores = [
-            ("Remitente", sender_score),
-            ("Asunto", subject_score),
-            ("Contenido", content_score),
-            ("Enlaces", url_score),
-        ]
-        max_factor = max(scores, key=lambda x: x[1])
-        factor_name = max_factor[0]
+        eval_details = ""
+        for key, eval in evaluations.items():
+            status = (
+                "🔴" if eval["score"] > 0.5 else "🟡" if eval["score"] > 0.3 else "🟢"
+            )
+            eval_details += f"{status} *{eval['nombre']}:* {eval['message']}\n"
 
         if label == "phishing":
-            summary = f"""Este email presenta un nivel de riesgo {level} ({final_score * 100:.0f}%).
+            summary = f"""📊 *RESUMEN DEL ANÁLISIS*
 
-¿Por qué se consideró phishing?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NIVEL DE RIESGO: {level} ({final_score * 100:.0f}%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-El factor más determinante fue: *{factor_name}*
+📋 *EVALUACIÓN DE CADA COMPONENTE:*
 
-El análisis detectó patrones similares a correos fraudulentos conocidos. Algunas palabras o características del email coinciden con técnicas comunes de phishing.
+{eval_details}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Recomendación: {recommendation}"""
+⚠️ *¿POR QUÉ SE CONSIDERA PHISHING?*
+
+El análisis detecto múltiples señales de alerta:
+{chr(10).join("- " + c for c in concerns)}
+
+🔍 *Fuentes que contribuyeron al diagnóstico:*
+• Modelo ML (TF-IDF + Logistic Regression): {content_score * 100:.0f}%
+• Análisis de VirusTotal: {url_score * 100:.0f}%
+• Patrones en asunto: {subject_score * 100:.0f}%
+• Reputación del dominio: {sender_score * 100:.0f}%
+
+💡 *MEDIDAS RECOMENDADAS:*
+{recommendation}"""
         elif label == "suspicious":
-            summary = f"""Este email tiene un nivel de riesgo {level} ({final_score * 100:.0f}%).
+            summary = f"""📊 *RESUMEN DEL ANÁLISIS*
 
-¿Por qué requiere atención?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NIVEL DE RIESGO: {level} ({final_score * 100:.0f}%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-El elemento que levantó sospecha fue: *{factor_name}*
+📋 *EVALUACIÓN DE CADA COMPONENTE:*
 
-Algunas características del email son similares a patrones conocidos de phishing, pero no son concluyentes.
+{eval_details}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Recomendación: {recommendation}"""
+⚠️ *¿POR QUÉ REQUIERE ATENCIÓN?*
+
+Se detectaron algunas señales sospechosas:
+{chr(10).join("- " + c for c in concerns)}
+
+🔍 *Fuentes que contribuyeron:*
+• Modelo ML (TF-IDF + Logistic Regression): {content_score * 100:.0f}%
+• Análisis de VirusTotal: {url_score * 100:.0f}%
+• Patrones en asunto: {subject_score * 100:.0f}%
+• Reputación del dominio: {sender_score * 100:.0f}%
+
+💡 *MEDIDAS RECOMENDADAS:*
+{recommendation}"""
         else:
-            summary = f"""Este email parece legítimo ({final_score * 100:.0f}% de confianza).
+            summary = f"""📊 *RESUMEN DEL ANÁLISIS*
 
-¿Por qué se consideró seguro?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NIVEL DE RIESGO: {level} ({final_score * 100:.0f}%)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- El dominio del remitente es normal
-- El asunto no contiene palabras de urgencia
-- El contenido no tiene patrones de estafas conocidos
-- Las URLs presentes son razonables
+📋 *EVALUACIÓN DE CADA COMPONENTE:*
 
-Nota: Mantén precaución habitual con cualquier email, incluso los que parecen seguros.
+{eval_details}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Recomendación: {recommendation}"""
+✅ *¿POR QUÉ SE CONSIDERÓ SEGURO?*
+
+Todos los componentes pasaron las pruebas:
+• Dominio del remitente: Normal
+• Asunto: Sin palabras de urgencia
+• Contenido: Sin patrones de phishing
+• Enlaces: Verificados como seguros (VirusTotal)
+
+🔍 *Fuentes verificadas:*
+• Modelo ML (TF-IDF + Logistic Regression): {content_score * 100:.0f}%
+• Análisis de VirusTotal: {url_score * 100:.0f}%
+• Patrones en asunto: {subject_score * 100:.0f}%
+• Reputación del dominio: {sender_score * 100:.0f}%
+
+💡 *NOTA:*
+Mantén precaución habitual con cualquier email, incluso los que parecen seguros.
+
+{recommendation}"""
 
         result = {
             "score": round(final_score * 100, 1),
             "label": label,
+            "level": level,
             "details": {
-                "sender": {"score": sender_score, "message": sender_msg},
-                "subject": {"score": subject_score, "message": subject_msg},
-                "content": {"score": content_score, "message": content_msg},
-                "urls": {"score": url_score, "message": url_msg, "words": url_words},
+                "remitente": {
+                    "score": sender_score,
+                    "message": sender_msg,
+                    "nombre": "Remitente",
+                },
+                "asunto": {
+                    "score": subject_score,
+                    "message": subject_msg,
+                    "nombre": "Asunto",
+                },
+                "contenido": {
+                    "score": content_score,
+                    "message": content_msg,
+                    "nombre": "Contenido",
+                },
+                "enlaces": {
+                    "score": url_score,
+                    "message": url_msg,
+                    "words": url_words,
+                    "nombre": "Enlaces",
+                },
             },
+            "virustotal": vt_results,
             "recommendation": recommendation,
             "summary": summary,
-            "virustotal": vt_results,
+            "components": {
+                "ml_model": {
+                    "score": round(content_score * 100, 1),
+                    "weight": weights["content"] * 100,
+                },
+                "virustotal": {
+                    "score": round(url_score * 100, 1),
+                    "weight": weights["urls"] * 100,
+                },
+                "subject_analysis": {
+                    "score": round(subject_score * 100, 1),
+                    "weight": weights["subject"] * 100,
+                },
+                "sender_analysis": {
+                    "score": round(sender_score * 100, 1),
+                    "weight": weights["sender"] * 100,
+                },
+            },
         }
 
         response_body = json.dumps(result).encode("utf-8")
