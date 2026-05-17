@@ -182,12 +182,12 @@ def analyze_sender(sender):
     if not sender:
         return 0.1, "No proporcionado"
     if "@" not in sender:
-        return 0.3, "Formato inválido"
+        return 0.3, "Formato de email inválido"
     domain = sender.split("@")[-1].lower()
     for tld in SUSPICIOUS_TLD:
         if domain.endswith(tld):
-            return 0.8, f"Dominio sospechoso: {domain}"
-    return 0.1, f"Dominio normal: {domain}"
+            return 0.8, f"Dominio sospechoso"
+    return 0.1, "Dominio normal"
 
 
 def analyze_subject(subject):
@@ -210,9 +210,9 @@ def analyze_subject(subject):
     subject_lower = subject.lower()
     for word in urgency_words:
         if word in subject_lower:
-            return 0.8, f"Palabra de urgencia: {word}"
+            return 0.8, f"Palabra de urgencia detectada"
     if len(subject) > 100:
-        return 0.5, "Asunto muy largo"
+        return 0.5, "Asunto excesivamente largo"
     return 0.2, "Asunto normal"
 
 
@@ -258,12 +258,17 @@ def app(environ, start_response):
         processed = clean_text(content)
         if len(processed) < 20:
             content_score = 0.0
-            content_msg = "Contenido muy corto"
+            content_msg = "Contenido muy corto para analizar"
         else:
             X = vectorizer.transform([processed])
             ml_prob = model.predict_proba(X)[0][1]
             content_score = ml_prob
-            content_msg = "Contenido procesado"
+            if ml_prob > 0.6:
+                content_msg = "Patrones de phishing detectados"
+            elif ml_prob > 0.4:
+                content_msg = "Contenido sospechoso"
+            else:
+                content_msg = "Contenido normal"
 
         weights = {"sender": 0.15, "subject": 0.20, "content": 0.50, "urls": 0.15}
         final_score = (
@@ -289,23 +294,22 @@ def app(environ, start_response):
             level = "BAJO"
 
         scores = [
-            ("Remitente", sender_score, sender_msg),
-            ("Asunto", subject_score, subject_msg),
-            ("Contenido", content_score, content_msg),
-            ("Enlaces", url_score, url_msg),
+            ("Remitente", sender_score),
+            ("Asunto", subject_score),
+            ("Contenido", content_score),
+            ("Enlaces", url_score),
         ]
         max_factor = max(scores, key=lambda x: x[1])
         factor_name = max_factor[0]
-        factor_reason = max_factor[2]
 
         if label == "phishing":
             summary = f"""Este email presenta un nivel de riesgo {level} ({final_score * 100:.0f}%).
 
 ¿Por qué se consideró phishing?
 
-El factor más determinante fue: *{factor_name} - {factor_reason}*
+El factor más determinante fue: *{factor_name}*
 
-Algunas palabras del contenido aparecen en nuestra base de datos de patrones de phishing. El modelo detectó patrones similares a correos fraudulentos conocidos.
+El análisis detectó patrones similares a correos fraudulentos conocidos. Algunas palabras o características del email coinciden con técnicas comunes de phishing.
 
 Recomendación: {recommendation}"""
         elif label == "suspicious":
@@ -313,9 +317,9 @@ Recomendación: {recommendation}"""
 
 ¿Por qué requiere atención?
 
-El elemento que levantó sospecha fue: *{factor_name} - {factor_reason}*
+El elemento que levantó sospecha fue: *{factor_name}*
 
-Algunas palabras del contenido también aparecieron en nuestra base de datos de patrones de phishing. Esto no significa necesariamente que sea fraude, pero requiere verificación adicional.
+Algunas características del email son similares a patrones conocidos de phishing, pero no son concluyentes.
 
 Recomendación: {recommendation}"""
         else:
