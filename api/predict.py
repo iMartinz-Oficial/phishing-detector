@@ -119,6 +119,35 @@ SUSPICIOUS_TLD = [
     ".site",
     ".buzz",
 ]
+SUSPICIOUS_URL_PATTERN = (
+    r"(paypal|amazon|apple|microsoft|bank|chase|wellsfargo|citibank).*[0-9]"
+)
+
+
+def extract_urls(text):
+    return re.findall(r"http\S+|https\S+|www\.[^\s]+", text.lower())
+
+
+def analyze_urls(urls):
+    if not urls:
+        return 0.1, "Sin URLs detectadas"
+    found_urls = []
+    for url in urls:
+        for tld in SUSPICIOUS_TLD:
+            if tld in url:
+                found_urls.append(
+                    {"palabra": url[:50], "razon": f"TLD '{tld}' sospechoso"}
+                )
+                return 0.8, f"URL con TLD sospechoso", found_urls
+        if re.search(SUSPICIOUS_URL_PATTERN, url.lower()):
+            found_urls.append(
+                {"palabra": url[:50], "razon": "Dominio que simula marca conocida"}
+            )
+            return 0.6, "URL con patrón de marca falsa", found_urls
+    if len(urls) > 5:
+        return 0.5, f"Muchas URLs ({len(urls)})", []
+    return 0.2, f"{len(urls)} URLs normales", []
+
 
 model = None
 vectorizer = None
@@ -217,9 +246,14 @@ def app(environ, start_response):
         sender = data.get("sender", "")
         subject = data.get("subject", "")
         content = data.get("content", "")
+        urls_input = data.get("urls", [])
 
         sender_score, sender_msg = analyze_sender(sender)
         subject_score, subject_msg = analyze_subject(subject)
+
+        content_urls = extract_urls(content)
+        all_urls = list(set(urls_input + content_urls))
+        url_score, url_msg, url_words = analyze_urls(all_urls)
 
         processed = clean_text(content)
         if len(processed) < 20:
@@ -231,11 +265,12 @@ def app(environ, start_response):
             content_score = ml_prob
             content_msg = "Contenido procesado"
 
-        weights = {"sender": 0.15, "subject": 0.20, "content": 0.65}
+        weights = {"sender": 0.15, "subject": 0.20, "content": 0.50, "urls": 0.15}
         final_score = (
             sender_score * weights["sender"]
             + subject_score * weights["subject"]
             + content_score * weights["content"]
+            + url_score * weights["urls"]
         )
 
         if final_score > 0.6:
@@ -257,6 +292,7 @@ def app(environ, start_response):
                 "sender": {"score": sender_score, "message": sender_msg},
                 "subject": {"score": subject_score, "message": subject_msg},
                 "content": {"score": content_score, "message": content_msg},
+                "urls": {"score": url_score, "message": url_msg, "words": url_words},
             },
             "recommendation": recommendation,
         }
