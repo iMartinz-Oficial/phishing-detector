@@ -8,6 +8,7 @@ import pickle
 import os
 import json
 import urllib.parse
+import base64
 
 VIRUSTOTAL_API_KEY = "95fb73b2aacb4c03eef468de781c8360a183c96745c52d92e6a9c66fb46a0f06"
 
@@ -21,38 +22,66 @@ def check_url_virustotal(url):
         import requests
 
         vt_url = "https://www.virustotal.com/api/v3"
-        headers = {
-            "x-apikey": VIRUSTOTAL_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
 
-        # First try to get existing analysis
-        encoded_url = urllib.parse.quote(url, safe="")
-        response = requests.get(
-            f"{vt_url}/urls/{encoded_url}",
+        # Extract domain from URL
+        domain = (
+            url.split("://")[1].split("/")[0] if "://" in url else url.split("/")[0]
+        )
+
+        # Try to get domain analysis first (more likely to exist)
+        domain_response = requests.get(
+            f"{vt_url}/domains/{domain}",
             headers=headers,
             timeout=10,
         )
 
-        # If not found (404), submit URL for analysis
-        if response.status_code == 404:
-            response = requests.post(
-                f"{vt_url}/urls",
-                headers=headers,
-                data=f"url={urllib.parse.quote(url)}",
-                timeout=10,
+        if domain_response.status_code == 200:
+            domain_data = domain_response.json()
+            stats = (
+                domain_data.get("data", {})
+                .get("attributes", {})
+                .get("last_analysis_stats", {})
             )
-            if response.status_code == 200:
+
+            malicious = stats.get("malicious", 0)
+            suspicious = stats.get("suspicious", 0)
+            harmless = stats.get("harmless", 0)
+            undetected = stats.get("undetected", 0)
+            total = malicious + suspicious + harmless + undetected
+
+            if total > 0:
+                threat_score = (malicious + suspicious) / total
+
+                if threat_score > 0.5:
+                    status = "PELIGROSO"
+                    msg = f"Dominio peligroso: {malicious} malware, {suspicious} sospechoso"
+                elif threat_score > 0.1:
+                    status = "SOSPECHOSO"
+                    msg = f"{malicious} malicioso, {suspicious} sospechoso de {total} análisis"
+                else:
+                    status = "SEGURO"
+                    msg = f"Dominio seguro: {harmless} de {total} análisis limpios"
+
                 return {
-                    "status": "EN_ANALISIS",
-                    "message": "URL enviada a VirusTotal, análisis en progreso...",
-                    "malicious": 0,
-                    "suspicious": 0,
-                    "total": 0,
+                    "status": status,
+                    "message": msg,
+                    "malicious": malicious,
+                    "suspicious": suspicious,
+                    "total": total,
+                    "domain": domain,
                 }
 
-        if response.status_code == 200:
-            data = response.json()
+        # Try URL analysis with base64 encoding
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip("=")
+        url_response = requests.get(
+            f"{vt_url}/urls/{url_id}",
+            headers=headers,
+            timeout=10,
+        )
+
+        if url_response.status_code == 200:
+            data = url_response.json()
             last_analysis = (
                 data.get("data", {})
                 .get("attributes", {})
@@ -87,8 +116,6 @@ def check_url_virustotal(url):
                 if threat_score > 0.5 or phishing_count > 0:
                     status = "PELIGROSO"
                     msg = f"Detectado por {malicious + suspicious} de {total} análisis"
-                    if phishing_count > 0:
-                        msg += f" ({phishing_count} reportes de phishing)"
                 elif threat_score > 0.1:
                     status = "SOSPECHOSO"
                     msg = f"{malicious} malicioso, {suspicious} sospechoso de {total}"
@@ -103,15 +130,18 @@ def check_url_virustotal(url):
                     "suspicious": suspicious,
                     "total": total,
                     "phishing": phishing_count,
+                    "domain": domain,
                 }
 
         return {
-            "status": "NO_DISPONIBLE",
-            "message": "No se pudo obtener análisis",
+            "status": "NO_EN_DB",
+            "message": f"Dominio '{domain}' no encontrado en VirusTotal",
             "malicious": 0,
             "suspicious": 0,
             "total": 0,
+            "domain": domain,
         }
+
     except Exception as e:
         return {
             "status": "ERROR",
@@ -120,15 +150,6 @@ def check_url_virustotal(url):
             "suspicious": 0,
             "total": 0,
         }
-
-    return None
-
-    try:
-        import requests
-
-        vt_url = "https://www.virustotal.com/api/v3/urls"
-
-        encoded_url = urllib.parse.quote(url, safe="")
         response = requests.get(
             f"{vt_url}/{encoded_url}",
             headers={"x-apikey": VIRUSTOTAL_API_KEY},
