@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acerca del Proyecto - Phishing Detector</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; padding: 20px; color: #fff; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; padding: 15px 0; border-bottom: 1px solid #3a3a4e; }
+        .menu-btn { background: none; border: none; color: #00d4ff; font-size: 24px; cursor: pointer; }
+        .menu-btn:hover { color: #00a3cc; }
+        h1 { color: #00d4ff; font-size: 1.8rem; }
+        .back-link { color: #00d4ff; text-decoration: none; font-size: 14px; }
+        .back-link:hover { text-decoration: underline; }
+        .card { background: #1e1e2e; border-radius: 16px; padding: 30px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+        h2 { color: #00d4ff; margin-bottom: 15px; font-size: 1.4rem; }
+        h3 { color: #00a3cc; margin: 20px 0 10px; font-size: 1.1rem; }
+        p { color: #a0a0a0; line-height: 1.7; margin-bottom: 15px; }
+        ul { color: #a0a0a0; margin-left: 20px; line-height: 1.8; }
+        li { margin-bottom: 8px; }
+        code { background: #2a2a3e; padding: 2px 8px; border-radius: 4px; color: #00d4ff; font-size: 0.9em; }
+        .tech-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 10px; }
+        .tech-item { background: #2a2a3e; padding: 15px; border-radius: 8px; text-align: center; }
+        .tech-item span { color: #00d4ff; font-weight: 600; }
+        .highlight { color: #00d4ff; font-weight: 600; }
+        .arrow { display: inline-block; margin: 0 10px; color: #00d4ff; }
+        .menu-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 100; }
+        .menu-overlay.active { display: block; }
+        .menu-content { position: absolute; top: 0; left: -280px; width: 280px; height: 100%; background: #1e1e2e; padding: 30px; transition: left 0.3s; }
+        .menu-overlay.active .menu-content { left: 0; }
+        .menu-close { position: absolute; top: 15px; right: 15px; background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; }
+        .menu-item { display: block; color: #a0a0a0; text-decoration: none; padding: 15px 0; border-bottom: 1px solid #3a3a4e; font-size: 16px; }
+        .menu-item:hover, .menu-item.active { color: #00d4ff; }
+        .menu-item.active { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="menu-overlay" id="menuOverlay">
+        <div class="menu-content">
+            <button class="menu-close" onclick="closeMenu()">×</button>
+            <a href="/" class="menu-item">🛡️ Detector</a>
+            <a href="/about" class="menu-item active">📚 Acerca del Proyecto</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <button class="menu-btn" onclick="openMenu()">☰</button>
+            <a href="/" class="back-link">← Volver al Detector</a>
+        </div>
+
+        <div class="card">
+            <h1>📚 Acerca del Proyecto</h1>
+            <p style="margin-top: 20px;">Phishing Detector es una aplicación web que utiliza <span class="highlight">Inteligencia Artificial</span> para detectar correos electrónicos fraudulentos tipo phishing.</p>
+        </div>
+
+        <div class="card">
+            <h2>🤖 ¿Qué es Phishing?</h2>
+            <p>El phishing es un tipo de ciberataque donde los atacantes envían correos falsificados que aparentan ser de empresas legítimas (bancos, tiendas, redes sociales) para engañar a las víctimas y obtener información sensible como contraseñas, números de tarjeta de crédito o datos personales.</p>
+            <p>Este sistema analiza automáticamente los correos y determina si son legítimos o fraudulentos con un <span class="highlight">96% de precisión</span>.</p>
+        </div>
+
+        <div class="card">
+            <h2>🔧 ¿Con qué se construyó?</h2>
+            <div class="tech-grid">
+                <div class="tech-item"><span>Python</span></div>
+                <div class="tech-item"><span>Scikit-learn</span></div>
+                <div class="tech-item"><span>TF-IDF</span></div>
+                <div class="tech-item"><span>Logistic Regression</span></div>
+                <div class="tech-item"><span>HTML/CSS/JS</span></div>
+                <div class="tech-item"><span>Vercel</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>⚙️ ¿Qué hace la aplicación?</h2>
+            <p>El sistema analiza 4 componentes del email:</p>
+            <ul>
+                <li><span class="highlight">Remitente:</span> Verifica si el dominio del email es sospechoso</li>
+                <li><span class="highlight">Asunto:</span> Detecta palabras de urgencia o tácticas de manipulación</li>
+                <li><span class="highlight">Contenido:</span> Usa ML para identificar patrones de phishing</li>
+                <li><span class="highlight">Enlaces:</span> Analiza las URLs en busca de dominios sospechosos</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>🧠 ¿Cómo funciona la IA?</h2>
+            <h3>1. Entrenamiento del Modelo</h3>
+            <p>El modelo se entrenó con más de <span class="highlight">160,000 correos electrónicos</span> etiquetados (legítimos y phishing) del dataset público de HuggingFace.</p>
+
+            <h3>2. Preprocesamiento de Texto</h3>
+            <p>Cuando analizamos un email, primero limpiamos el texto:</p>
+            <ul>
+                <li>Convertimos a minúsculas</li>
+                <li>Eliminamos URLs y emails</li>
+                <li>Removemos "palabras vacías" (the, is, and...)</li>
+                <li>Solo mantenemos palabras relevantes</li>
+            </ul>
+
+            <h3>3. Vectorización TF-IDF</h3>
+            <p>El texto limpio se convierte en números usando <span class="highlight">TF-IDF</span> (Term Frequency - Inverse Document Frequency). Esto asigna un peso a cada palabra según qué tan importante sea para identificar phishing.</p>
+
+            <h3>4. Clasificación con Logistic Regression</h3>
+            <p>El modelo de <span class="highlight">Logistic Regression</span> analiza el vector de características y calcula una probabilidad de que el email sea phishing.</p>
+            <p>Flujo: <code>Email → Limpieza → TF-IDF → Modelo ML → Probabilidad (%)</code></p>
+        </div>
+
+        <div class="card">
+            <h2>☁️ ¿Cómo se despliega?</h2>
+            <p>La aplicación se despliega en <span class="highlight">Vercel</span>, una plataforma de cloud computing:</p>
+            <ul>
+                <li><span class="highlight">Frontend:</span> Archivo HTML/CSS estático served por Vercel</li>
+                <li><span class="highlight">API:</span> Función Python serverless que carga el modelo ML</li>
+                <li><span class="highlight">Modelos:</span> Archivos .pkl con el modelo entrenado y el vectorizador</li>
+            </ul>
+            <p>Cuando el usuario envía un email, el frontend lo manda a la API, que lo procesa con el modelo y devuelve el resultado.</p>
+        </div>
+
+        <div class="card">
+            <h2>📊 Métricas del Modelo</h2>
+            <ul>
+                <li><span class="highlight">Precisión:</span> 96.42% - De todos los correos analizados, el 96% se clasificaron correctamente</li>
+                <li><span class="highlight">Precision (Phishing):</span> 95.43% - De los marcados como phishing, el 95% realmente lo eran</li>
+                <li><span class="highlight">Recall:</span> 96.83% - Detectamos el 97% de todos los phishing reales</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>🔒 Limitaciones y Recomendaciones</h2>
+            <p>Este sistema es una herramienta de ayuda, no un sustituto del juicio humano. Siempre:</p>
+            <ul>
+                <li>Verifica el remitente directamente antes de actuar</li>
+                <li>No hagas clic en enlaces de emails sospechosos</li>
+                <li>No proporciones información personal por email</li>
+                <li>Cuando dudes, contacta a la empresa por otros medios</li>
+            </ul>
+        </div>
+
+        <p style="text-align: center; color: #666; margin-top: 30px; font-size: 14px;">
+            Phishing Detector v1.0 - Proyecto de Inteligencia Artificial
+        </p>
+    </div>
+
+    <script>
+        function openMenu() {
+            document.getElementById('menuOverlay').classList.add('active');
+        }
+        function closeMenu() {
+            document.getElementById('menuOverlay').classList.remove('active');
+        }
+    </script>
+</body>
+</html>
