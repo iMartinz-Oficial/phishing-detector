@@ -20,6 +20,112 @@ def check_url_virustotal(url):
     try:
         import requests
 
+        vt_url = "https://www.virustotal.com/api/v3"
+        headers = {
+            "x-apikey": VIRUSTOTAL_API_KEY,
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        # First try to get existing analysis
+        encoded_url = urllib.parse.quote(url, safe="")
+        response = requests.get(
+            f"{vt_url}/urls/{encoded_url}",
+            headers=headers,
+            timeout=10,
+        )
+
+        # If not found (404), submit URL for analysis
+        if response.status_code == 404:
+            response = requests.post(
+                f"{vt_url}/urls",
+                headers=headers,
+                data=f"url={urllib.parse.quote(url)}",
+                timeout=10,
+            )
+            if response.status_code == 200:
+                return {
+                    "status": "EN_ANALISIS",
+                    "message": "URL enviada a VirusTotal, análisis en progreso...",
+                    "malicious": 0,
+                    "suspicious": 0,
+                    "total": 0,
+                }
+
+        if response.status_code == 200:
+            data = response.json()
+            last_analysis = (
+                data.get("data", {})
+                .get("attributes", {})
+                .get("last_analysis_results", {})
+            )
+
+            malicious = 0
+            suspicious = 0
+            harmless = 0
+            undetected = 0
+            phishing_count = 0
+
+            for engine, result in last_analysis.items():
+                category = result.get("category", "")
+                result_name = result.get("result", "")
+                if category == "malicious" or result_name == "phishing":
+                    malicious += 1
+                    if result_name == "phishing":
+                        phishing_count += 1
+                elif category == "suspicious":
+                    suspicious += 1
+                elif category == "harmless":
+                    harmless += 1
+                else:
+                    undetected += 1
+
+            total = malicious + suspicious + harmless + undetected
+
+            if total > 0:
+                threat_score = (malicious + suspicious) / total
+
+                if threat_score > 0.5 or phishing_count > 0:
+                    status = "PELIGROSO"
+                    msg = f"Detectado por {malicious + suspicious} de {total} análisis"
+                    if phishing_count > 0:
+                        msg += f" ({phishing_count} reportes de phishing)"
+                elif threat_score > 0.1:
+                    status = "SOSPECHOSO"
+                    msg = f"{malicious} malicioso, {suspicious} sospechoso de {total}"
+                else:
+                    status = "SEGURO"
+                    msg = f"{harmless} análisis seguros de {total}"
+
+                return {
+                    "status": status,
+                    "message": msg,
+                    "malicious": malicious,
+                    "suspicious": suspicious,
+                    "total": total,
+                    "phishing": phishing_count,
+                }
+
+        return {
+            "status": "NO_DISPONIBLE",
+            "message": "No se pudo obtener análisis",
+            "malicious": 0,
+            "suspicious": 0,
+            "total": 0,
+        }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "message": f"Error: {str(e)}",
+            "malicious": 0,
+            "suspicious": 0,
+            "total": 0,
+        }
+
+    return None
+
+    try:
+        import requests
+
         vt_url = "https://www.virustotal.com/api/v3/urls"
 
         encoded_url = urllib.parse.quote(url, safe="")
