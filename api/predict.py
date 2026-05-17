@@ -6,6 +6,7 @@ Compatible con Vercel Python Functions.
 import re
 import pickle
 import os
+import json
 
 STOP_WORDS = set(
     [
@@ -126,12 +127,9 @@ vectorizer = None
 def load_models():
     global model, vectorizer
     if model is None:
-        model_path = os.path.join(
-            os.path.dirname(__file__), "..", "models", "model.pkl"
-        )
-        vectorizer_path = os.path.join(
-            os.path.dirname(__file__), "..", "models", "vectorizer.pkl"
-        )
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, "..", "models", "model.pkl")
+        vectorizer_path = os.path.join(base_dir, "..", "models", "vectorizer.pkl")
         with open(model_path, "rb") as f:
             model = pickle.load(f)
         with open(vectorizer_path, "rb") as f:
@@ -189,27 +187,36 @@ def analyze_subject(subject):
     return 0.2, "Asunto normal"
 
 
-def handler(request):
-    """Vercel handler function"""
+def app(environ, start_response):
+    """Vercel WSGI app"""
     load_models()
 
-    if request.method == "GET":
-        return {
-            "statusCode": 200,
-            "body": '{"status": "ok", "message": "Phishing Detector API"}',
-        }
+    path = environ.get("PATH_INFO", "/")
+    method = environ.get("REQUEST_METHOD", "GET")
 
-    if request.method == "POST":
+    # Parse request body
+    content_length = int(environ.get("CONTENT_LENGTH", 0))
+    body = (
+        environ.get("wsgi.input", "").read(content_length).decode("utf-8")
+        if content_length > 0
+        else ""
+    )
+
+    if method == "GET":
+        response = {"status": "ok", "message": "Phishing Detector API"}
+        response_body = json.dumps(response).encode("utf-8")
+        start_response("200 OK", [("Content-Type", "application/json")])
+        return [response_body]
+
+    if method == "POST":
         try:
-            import json
-
-            body = json.loads(request.body)
+            data = json.loads(body) if body else {}
         except:
-            body = request.json()
+            data = {}
 
-        sender = body.get("sender", "")
-        subject = body.get("subject", "")
-        content = body.get("content", "")
+        sender = data.get("sender", "")
+        subject = data.get("subject", "")
+        content = data.get("content", "")
 
         sender_score, sender_msg = analyze_sender(sender)
         subject_score, subject_msg = analyze_subject(subject)
@@ -254,6 +261,9 @@ def handler(request):
             "recommendation": recommendation,
         }
 
-        return {"statusCode": 200, "body": json.dumps(result)}
+        response_body = json.dumps(result).encode("utf-8")
+        start_response("200 OK", [("Content-Type", "application/json")])
+        return [response_body]
 
-    return {"statusCode": 405, "body": "Method not allowed"}
+    start_response("405 Method Not Allowed", [("Content-Type", "application/json")])
+    return [b'{"error": "Method not allowed"}']
