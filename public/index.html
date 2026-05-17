@@ -106,6 +106,10 @@
                     <h3>💡 Recomendación</h3>
                     <p id="recommendation">-</p>
                 </div>
+                <div class="recommendation" style="margin-top: 15px;">
+                    <h3>📋 Resumen del Análisis</h3>
+                    <p id="summary" style="white-space: pre-line; line-height: 1.6;">-</p>
+                </div>
             </div>
         </div>
     </div>
@@ -142,6 +146,7 @@
                 document.getElementById('contentDetail').textContent = data.details.content.message;
                 document.getElementById('urlsDetail').textContent = data.details.urls ? data.details.urls.message : 'Sin URLs';
                 document.getElementById('recommendation').textContent = data.recommendation;
+                document.getElementById('summary').textContent = data.summary || 'No disponible';
                 
                 const header = document.getElementById('resultHeader');
                 const fill = document.getElementById('scoreFill');

@@ -278,12 +278,59 @@ def app(environ, start_response):
             recommendation = (
                 "No hacer clic en ningún enlace, no proporcionar información personal"
             )
+            level = "ALTO"
         elif final_score > 0.4:
             label = "suspicious"
             recommendation = "Verificar el remitente directamente antes de actuar"
+            level = "MEDIO"
         else:
             label = "legitimate"
             recommendation = "Mantén precaución habitual con cualquier email"
+            level = "BAJO"
+
+        scores = [
+            ("Remitente", sender_score, sender_msg),
+            ("Asunto", subject_score, subject_msg),
+            ("Contenido", content_score, content_msg),
+            ("Enlaces", url_score, url_msg),
+        ]
+        max_factor = max(scores, key=lambda x: x[1])
+        factor_name = max_factor[0]
+        factor_reason = max_factor[2]
+
+        if label == "phishing":
+            summary = f"""Este email presenta un nivel de riesgo {level} ({final_score * 100:.0f}%).
+
+¿Por qué se consideró phishing?
+
+El factor más determinante fue: *{factor_name} - {factor_reason}*
+
+Algunas palabras del contenido aparecen en nuestra base de datos de patrones de phishing. El modelo detectó patrones similares a correos fraudulentos conocidos.
+
+Recomendación: {recommendation}"""
+        elif label == "suspicious":
+            summary = f"""Este email tiene un nivel de riesgo {level} ({final_score * 100:.0f}%).
+
+¿Por qué requiere atención?
+
+El elemento que levantó sospecha fue: *{factor_name} - {factor_reason}*
+
+Algunas palabras del contenido también aparecieron en nuestra base de datos de patrones de phishing. Esto no significa necesariamente que sea fraude, pero requiere verificación adicional.
+
+Recomendación: {recommendation}"""
+        else:
+            summary = f"""Este email parece legítimo ({final_score * 100:.0f}% de confianza).
+
+¿Por qué se consideró seguro?
+
+- El dominio del remitente es normal
+- El asunto no contiene palabras de urgencia
+- El contenido no tiene patrones de estafas conocidos
+- Las URLs presentes son razonables
+
+Nota: Mantén precaución habitual con cualquier email, incluso los que parecen seguros.
+
+Recomendación: {recommendation}"""
 
         result = {
             "score": round(final_score * 100, 1),
@@ -295,6 +342,7 @@ def app(environ, start_response):
                 "urls": {"score": url_score, "message": url_msg, "words": url_words},
             },
             "recommendation": recommendation,
+            "summary": summary,
         }
 
         response_body = json.dumps(result).encode("utf-8")
