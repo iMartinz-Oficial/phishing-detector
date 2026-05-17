@@ -7,6 +7,94 @@ import re
 import pickle
 import os
 import json
+import urllib.parse
+
+VIRUSTOTAL_API_KEY = "95fb73b2aacb4c03eef468de781c8360a183c96745c52d92e6a9c66fb46a0f06"
+
+
+def check_url_virustotal(url):
+    """Verifica una URL usando la API de VirusTotal"""
+    if not url or not url.startswith(("http://", "https://")):
+        return None
+
+    try:
+        import requests
+
+        vt_url = "https://www.virustotal.com/api/v3/urls"
+
+        encoded_url = urllib.parse.quote(url, safe="")
+        response = requests.get(
+            f"{vt_url}/{encoded_url}",
+            headers={"x-apikey": VIRUSTOTAL_API_KEY},
+            timeout=10,
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            last_analysis = (
+                data.get("data", {})
+                .get("attributes", {})
+                .get("last_analysis_results", {})
+            )
+
+            malicious = 0
+            suspicious = 0
+            harmless = 0
+            undetected = 0
+
+            for engine, result in last_analysis.items():
+                category = result.get("category", "")
+                if category == "malicious":
+                    malicious += 1
+                elif category == "suspicious":
+                    suspicious += 1
+                elif category == "harmless":
+                    harmless += 1
+                else:
+                    undetected += 1
+
+            total = malicious + suspicious + harmless + undetected
+            if total > 0:
+                threat_score = (malicious + suspicious) / total
+
+                if threat_score > 0.5:
+                    status = "PELIGROSO"
+                    message = (
+                        f"Detectado por {malicious + suspicious} de {total} análisis"
+                    )
+                elif threat_score > 0.1:
+                    status = "SOSPECHOSO"
+                    message = f"{malicious} malicious, {suspicious} suspicious de {total} análisis"
+                else:
+                    status = "SEGURO"
+                    message = f"{harmless} análisis seguros de {total}"
+
+                return {
+                    "status": status,
+                    "message": message,
+                    "malicious": malicious,
+                    "suspicious": suspicious,
+                    "total": total,
+                }
+        elif response.status_code == 404:
+            return {
+                "status": "NO_ANALIZADO",
+                "message": "URL no encontrada en VirusTotal, iniciando análisis...",
+                "malicious": 0,
+                "suspicious": 0,
+                "total": 0,
+            }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "message": f"Error al verificar: {str(e)}",
+            "malicious": 0,
+            "suspicious": 0,
+            "total": 0,
+        }
+
+    return None
+
 
 STOP_WORDS = set(
     [
@@ -130,23 +218,51 @@ def extract_urls(text):
 
 def analyze_urls(urls):
     if not urls:
-        return 0.1, "Sin URLs detectadas"
+        return 0.1, "Sin URLs detectadas", [], None
+
+    vt_results = []
     found_urls = []
+
     for url in urls:
         for tld in SUSPICIOUS_TLD:
             if tld in url:
                 found_urls.append(
                     {"palabra": url[:50], "razon": f"TLD '{tld}' sospechoso"}
                 )
-                return 0.8, f"URL con TLD sospechoso", found_urls
+                return 0.8, f"URL con TLD sospechoso", found_urls, None
         if re.search(SUSPICIOUS_URL_PATTERN, url.lower()):
             found_urls.append(
                 {"palabra": url[:50], "razon": "Dominio que simula marca conocida"}
             )
-            return 0.6, "URL con patrón de marca falsa", found_urls
+            return 0.6, "URL con patrón de marca falsa", found_urls, None
+
+        vt_result = check_url_virustotal(url)
+        if vt_result:
+            vt_results.append({"url": url[:50], "result": vt_result})
+
     if len(urls) > 5:
-        return 0.5, f"Muchas URLs ({len(urls)})", []
-    return 0.2, f"{len(urls)} URLs normales", []
+        return 0.5, f"Muchas URLs ({len(urls)})", [], None
+
+    malicious_count = sum(
+        1 for r in vt_results if r["result"].get("status") == "PELIGROSO"
+    )
+    suspicious_count = sum(
+        1 for r in vt_results if r["result"].get("status") == "SOSPECHOSO"
+    )
+
+    if malicious_count > 0:
+        return (
+            0.9,
+            "URL confirmada como maliciosa por VirusTotal",
+            found_urls,
+            vt_results,
+        )
+    elif suspicious_count > 0:
+        return 0.7, "URL sospechosa según VirusTotal", found_urls, vt_results
+    elif vt_results:
+        return 0.1, "URLs marcadas como seguras por VirusTotal", found_urls, vt_results
+
+    return 0.2, f"{len(urls)} URLs sin análisis previos", found_urls, vt_results
 
 
 model = None
@@ -253,7 +369,7 @@ def app(environ, start_response):
 
         content_urls = extract_urls(content)
         all_urls = list(set(urls_input + content_urls))
-        url_score, url_msg, url_words = analyze_urls(all_urls)
+        url_score, url_msg, url_words, vt_results = analyze_urls(all_urls)
 
         processed = clean_text(content)
         if len(processed) < 20:
@@ -347,6 +463,7 @@ Recomendación: {recommendation}"""
             },
             "recommendation": recommendation,
             "summary": summary,
+            "virustotal": vt_results,
         }
 
         response_body = json.dumps(result).encode("utf-8")
